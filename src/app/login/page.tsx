@@ -2,6 +2,7 @@
 import React, {FormEvent, useState} from "react";
 import {Routes} from "@/constants/enums";
 import {useRouter} from "next/navigation";
+import {authUtils} from "@/core/services/authUtils";
 
 const Login: React.FC = () => {
   const router = useRouter();
@@ -29,6 +30,11 @@ const Login: React.FC = () => {
 
       if(res.ok){
         const responseBody = await res.json();
+        // Store token and user data using auth utility
+        if (responseBody.data.token && responseBody.data.user) {
+          authUtils.setAuthData(responseBody.data.token, responseBody.data.user);
+        }
+        
         if(responseBody.data.user.type === "member") {
           router.push(Routes.Questionnaire);
         } else {
