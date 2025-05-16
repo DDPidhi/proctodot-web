@@ -286,7 +286,16 @@ const WaitingRoom: React.FC = () => {
                             name: `Student ${studentId}`,
                             stream: event.streams[0]
                         };
-                        setParticipants(prev => [...prev, newParticipant]);
+                        setParticipants(prev => {
+                            // Check if participant already exists
+                            const exists = prev.some(p => p.id === studentId);
+                            if (exists) {
+                                // Update existing participant with new stream
+                                return prev.map(p => p.id === studentId ? newParticipant : p);
+                            }
+                            // Add new participant if not exists
+                            return [...prev, newParticipant];
+                        });
                     }
                 },
                 (candidate) => {
