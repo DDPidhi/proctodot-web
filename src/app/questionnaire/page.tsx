@@ -90,7 +90,8 @@ const Questionnaire: React.FC = () => {
         socketHandler.sendMessage({
           event: 'exam-completed',
           message: JSON.stringify({ score, answers: selectedAnswers }),
-          participant: participantId
+          participant: participantId,
+          sender_id: String(participantId)
         });
       }
     } else {

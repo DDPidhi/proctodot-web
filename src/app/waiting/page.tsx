@@ -25,6 +25,7 @@ const WaitingRoom: React.FC = () => {
     const proctorVideoRef = useRef<HTMLVideoElement>(null);
     const [socketHandler, setSocketHandler] = useState<ProctorSocketHandler | null>(null);
     const [webRTCHandler, setWebRTCHandler] = useState<WebRTCHandler | null>(null);
+    const [completedStudents, setCompletedStudents] = useState<number[]>([]);
     const router = useRouter();
 
     const handleTileClick = (index: number) => {
@@ -42,6 +43,22 @@ const WaitingRoom: React.FC = () => {
             updated.push(removed);
             return updated;
         });
+    };
+
+    const startStudentExam = (studentId: number) => {
+        if (!socketHandler) return;
+        
+        console.log('Approving exam start for student:', studentId);
+        socketHandler.sendMessage({
+            event: 'start-exam',
+            message: '',
+            participant: studentId
+        });
+    };
+
+    const handleCompletedAction = (studentId: number) => {
+        console.log('Proctor action for completed student:', studentId);
+        // TODO: Add proctor action logic here
     };
 
     // Initialize proctor's camera
@@ -177,6 +194,12 @@ const WaitingRoom: React.FC = () => {
             rtcHandler.closePeerConnection(studentId);
         });
         
+        handler.on('exam-completed', (data: SocketMessage) => {
+            console.log('Student completed exam:', data);
+            const studentId = parseInt((data as any).sender_id || data.participant);
+            setCompletedStudents(prev => [...prev, studentId]);
+        });
+        
         // Connect to WebSocket
         handler.connect();
         
@@ -200,6 +223,9 @@ const WaitingRoom: React.FC = () => {
                                     name={participants[selectedParticipantIndex].name}
                                     stream={participants[selectedParticipantIndex].stream}
                                     onSendToEnd={() => sendToEnd(selectedParticipantIndex)}
+                                    onStartExam={() => startStudentExam(participants[selectedParticipantIndex].id)}
+                                    isCompleted={completedStudents.includes(participants[selectedParticipantIndex].id)}
+                                    onCompletedAction={() => handleCompletedAction(participants[selectedParticipantIndex].id)}
                                     isFullView
                                 />
                             ) : (
@@ -227,6 +253,7 @@ const WaitingRoom: React.FC = () => {
                                                 name={participant.name}
                                                 stream={participant.stream}
                                                 onSendToEnd={() => sendToEnd(index)}
+                                                isCompleted={completedStudents.includes(participant.id)}
                                             />
                                         ) : (
                                             <ParticipantTile
@@ -251,6 +278,7 @@ const WaitingRoom: React.FC = () => {
                                         name={participant.name}
                                         stream={participant.stream}
                                         onSendToEnd={() => sendToEnd(index)}
+                                        isCompleted={completedStudents.includes(participant.id)}
                                     />
                                 ) : (
                                     <ParticipantTile
