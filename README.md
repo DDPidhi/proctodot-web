@@ -1,36 +1,87 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ProctoDot
 
-## Getting Started
+## Overview
 
-First, run the development server:
+ProctoDot is a decentralized online exam proctoring system built with Next.js, WebRTC, and blockchain technology. It provides secure, transparent, and automated exam monitoring capabilities for remote testing environments.
 
+## Demo
+
+[![ProctoDot Demo Video](./demo.mov)](./demo.mov)
+
+## Features
+
+- Real-time video proctoring with WebRTC
+- Blockchain-based exam record keeping via ink! smart contracts
+- Student and proctor dashboards
+- Wallet integration for identity verification
+- End-to-end encrypted communication
+
+## Tech Stack
+
+- **Frontend**: Next.js, TypeScript, React
+- **Blockchain**: ink! smart contract on Polkadot
+- **WebRTC**: Real-time video streaming
+- **Backend**: proctodot-core (Rust)
+- **Database**: PostgreSQL via SeaORM
+
+## Setup Instructions
+
+### Prerequisites
+
+- Node.js 18+ and Yarn
+- Rust (for contract interaction)
+- MetaMask or similar Web3 wallet
+
+### Installation
+
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone [repository-url]
+cd proctodot-web
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+yarn install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Start the development server:
+```bash
+yarn dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The application will be available at [http://localhost:3000](http://localhost:3000).
 
-## Learn More
+## Project Structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+proctodot-web/
+├── src/
+│   ├── app/              # Next.js app directory
+│   ├── components/       # React components
+│   ├── contracts/        # Smart contract ABIs
+│   ├── core/            # Core services
+│   ├── hooks/           # Custom React hooks
+│   └── constants/       # App constants
+├── public/              # Static assets
+└── package.json         # Dependencies
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Available Scripts
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `yarn dev` - Starts the development server
+- `yarn build` - Creates a production build
+- `yarn start` - Runs the production server
+- `yarn lint` - Runs ESLint
 
-## Deploy on Vercel
+## Architecture
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+ProctoDot consists of three main components:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **proctodot-web** (this repository) - Frontend application
+2. **proctodot-core** - Backend server handling WebRTC and authentication
+3. **proctoink** - ink! smart contract for on-chain exam tracking
+
+## License
+
+[Add license information here]
