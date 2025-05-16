@@ -8,6 +8,11 @@ import { authUtils } from "@/core/services/authUtils";
 import { useRouter } from "next/navigation";
 import { Routes } from "@/constants/enums";
 import { WebRTCHandler } from "@/core/services/webrtcHandler";
+import { getProctorinkService } from "@/core/services/proctorinkContract";
+import { WalletService, WalletAccount } from "@/core/services/walletService";
+import WalletConnectModal from "@/app/components/WalletConnectModal";
+import WalletStatus from "@/app/components/WalletStatus";
+import { getUserDetails } from "@/core/services/userService";
 
 interface Participant {
     id: number;
@@ -26,7 +31,14 @@ const WaitingRoom: React.FC = () => {
     const [socketHandler, setSocketHandler] = useState<ProctorSocketHandler | null>(null);
     const [webRTCHandler, setWebRTCHandler] = useState<WebRTCHandler | null>(null);
     const [completedStudents, setCompletedStudents] = useState<number[]>([]);
+    const [completedData, setCompletedData] = useState<Map<number, any>>(new Map());
+    const [showWalletModal, setShowWalletModal] = useState(false);
+    const [walletAccounts, setWalletAccounts] = useState<WalletAccount[]>([]);
+    const [connectedWallet, setConnectedWallet] = useState<WalletAccount | null>(null);
+    const [isConnectingWallet, setIsConnectingWallet] = useState(false);
+    const [walletError, setWalletError] = useState<string | null>(null);
     const router = useRouter();
+    const walletService = WalletService.getInstance();
 
     const handleTileClick = (index: number) => {
         setSelectedParticipantIndex(index);
@@ -34,6 +46,36 @@ const WaitingRoom: React.FC = () => {
 
     const closeOverlay = () => {
         setSelectedParticipantIndex(null);
+    };
+
+    const connectWallet = async () => {
+        setIsConnectingWallet(true);
+        setWalletError(null);
+        
+        try {
+            const accounts = await walletService.connectWallet();
+            setWalletAccounts(accounts);
+            
+            if (accounts.length === 1) {
+                // If only one account, automatically select it
+                handleWalletConnect(accounts[0]);
+            } else {
+                // Show modal to select account
+                setShowWalletModal(true);
+            }
+        } catch (error) {
+            setWalletError(error instanceof Error ? error.message : 'Failed to connect wallet');
+            setShowWalletModal(true);
+        } finally {
+            setIsConnectingWallet(false);
+        }
+    };
+
+    const handleWalletConnect = (account: WalletAccount) => {
+        walletService.selectAccount(account.address);
+        setConnectedWallet(account);
+        setShowWalletModal(false);
+        console.log('Wallet connected:', account.address);
     };
 
     const sendToEnd = (index: number) => {
@@ -45,10 +87,53 @@ const WaitingRoom: React.FC = () => {
         });
     };
 
-    const startStudentExam = (studentId: number) => {
+    const startStudentExam = async (studentId: number) => {
         if (!socketHandler) return;
         
         console.log('Approving exam start for student:', studentId);
+        
+        try {
+            // Check if wallet is connected
+            if (!connectedWallet) {
+                alert('Please connect your wallet first');
+                await connectWallet();
+                return;
+            }
+            
+            const proctorAddress = connectedWallet.address;
+            
+            // Get proctorink service
+            const contractAddress = process.env.NEXT_PUBLIC_PROCTORINK_CONTRACT_ADDRESS;
+            if (contractAddress) {
+                const proctorinkService = getProctorinkService(contractAddress);
+                
+                // Initialize the service
+                await proctorinkService.initialize();
+                
+                // Fetch student details to get wallet address
+                const studentDetails = await getUserDetails(studentId);
+                const studentAddress = studentDetails.wallet_address;
+                
+                console.log('Student wallet address:', studentAddress);
+                
+                // Set the start time in the contract
+                const startTime = Date.now();
+                const tx = await proctorinkService.setStartTime(
+                    studentAddress,
+                    startTime,
+                    proctorAddress
+                );
+                
+                // Sign and submit with wallet
+                const result = await tx.signAndSubmit(walletService.getSelectedAccount()!.address);
+                
+                console.log('Exam start time recorded on blockchain', result);
+            }
+        } catch (error) {
+            console.error('Error recording start time on blockchain:', error);
+        }
+        
+        // Still send the WebSocket message to start the exam
         socketHandler.sendMessage({
             event: 'start-exam',
             message: '',
@@ -56,10 +141,69 @@ const WaitingRoom: React.FC = () => {
         });
     };
 
-    const handleCompletedAction = (studentId: number) => {
-        console.log('Proctor action for completed student:', studentId);
-        // TODO: Add proctor action logic here
+    const handleCompletedAction = async (studentId: number) => {
+        console.log('Submitting exam session to blockchain for student:', studentId);
+        
+        try {
+            // Check if wallet is connected
+            if (!connectedWallet) {
+                alert('Please connect your wallet first');
+                await connectWallet();
+                return;
+            }
+            
+            // Get the exam data from completed data map
+            const examData = completedData.get(studentId);
+            if (!examData) {
+                console.error('No exam data found for student:', studentId);
+                return;
+            }
+            
+            const proctorAddress = connectedWallet.address;
+            
+            // Get proctorink service (you'll need to provide the contract address)
+            const contractAddress = process.env.NEXT_PUBLIC_PROCTORINK_CONTRACT_ADDRESS;
+            if (!contractAddress) {
+                console.error('Proctorink contract address not configured');
+                return;
+            }
+            
+            const proctorinkService = getProctorinkService(contractAddress);
+            
+            // Initialize the service
+            await proctorinkService.initialize();
+            
+            // Fetch student details to get wallet address
+            const studentDetails = await getUserDetails(studentId);
+            const studentAddress = studentDetails.wallet_address;
+            
+            console.log('Student wallet address:', studentAddress);
+            
+            // Set the end time for the exam
+            const endTime = Date.now();
+            const tx = await proctorinkService.setEndTime(
+                studentAddress,
+                endTime,
+                proctorAddress
+            );
+            
+            // Sign and submit with wallet
+            const result = await tx.signAndSubmit(walletService.getSelectedAccount()!.address);
+            
+            console.log('Exam end time submitted to blockchain:', result);
+            alert('Exam session successfully submitted to blockchain!');
+            
+            // TODO: Update UI to show submission status
+        } catch (error) {
+            console.error('Error submitting to blockchain:', error);
+            alert('Failed to submit exam session to blockchain');
+        }
     };
+
+    // Check wallet connection on mount
+    useEffect(() => {
+        connectWallet();
+    }, []);
 
     // Initialize proctor's camera
     useEffect(() => {
@@ -197,6 +341,22 @@ const WaitingRoom: React.FC = () => {
         handler.on('exam-completed', (data: SocketMessage) => {
             console.log('Student completed exam:', data);
             const studentId = parseInt((data as any).sender_id || data.participant);
+            
+            // Parse the exam data from the message
+            let examData;
+            try {
+                examData = JSON.parse(data.message);
+            } catch (e) {
+                examData = { score: 0, answers: [] };
+            }
+            
+            // Store the exam data
+            setCompletedData(prev => {
+                const newMap = new Map(prev);
+                newMap.set(studentId, examData);
+                return newMap;
+            });
+            
             setCompletedStudents(prev => [...prev, studentId]);
         });
         
@@ -212,6 +372,8 @@ const WaitingRoom: React.FC = () => {
 
     return (
         <>
+            <WalletStatus wallet={connectedWallet} onConnect={connectWallet} />
+            
             <div className="relative min-h-screen bg-white p-4">
                 {selectedParticipantIndex !== null ? (
                     <div className="flex h-screen gap-4 rounded-2xl "
@@ -304,6 +466,15 @@ const WaitingRoom: React.FC = () => {
                 </div>
             </div>
             <Footer />
+            
+            <WalletConnectModal
+                isOpen={showWalletModal}
+                onClose={() => setShowWalletModal(false)}
+                onConnect={handleWalletConnect}
+                accounts={walletAccounts}
+                isConnecting={isConnectingWallet}
+                error={walletError}
+            />
         </>
 
     );

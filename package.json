@@ -9,10 +9,16 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@polkadot-api/descriptors": "file:.papi/descriptors",
+    "@polkadot-api/sdk-ink": "^0.0.1-1",
+    "@polkadot-api/ws-provider": "^0.4.0",
+    "@polkadot/extension-dapp": "^0.58.10",
+    "@polkadot/extension-inject": "^0.58.10",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.510.0",
     "next": "15.3.2",
+    "polkadot-api": "^1.11.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^3.3.0",
