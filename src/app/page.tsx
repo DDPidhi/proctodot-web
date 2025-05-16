@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import {Routes} from "@/constants/enums";
 
 const Home = () => {
-  redirect(Routes.Register);
+  redirect(Routes.Login);
 };
 
 export default Home;

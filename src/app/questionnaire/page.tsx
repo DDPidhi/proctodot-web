@@ -1,9 +1,10 @@
 'use client';
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useState, useRef} from "react";
 import {useRouter} from "next/navigation";
 import { MemberSocketHandler, SocketMessage } from "@/core/services/socketHandler";
 import { authUtils } from "@/core/services/authUtils";
 import {Routes} from "@/constants/enums";
+import { WebRTCHandler } from "@/core/services/webrtcHandler";
 
 const questions = [
   {
@@ -66,6 +67,9 @@ const Questionnaire: React.FC = () => {
   const [isFinished, setIsFinished] = useState(false);
   const [examStarted, setExamStarted] = useState(false);
   const [socketHandler, setSocketHandler] = useState<MemberSocketHandler | null>(null);
+  const [webRTCHandler, setWebRTCHandler] = useState<WebRTCHandler | null>(null);
+  const proctorVideoRef = useRef<HTMLVideoElement>(null);
+  const [proctorStream, setProctorStream] = useState<MediaStream | null>(null);
 
   const score = selectedAnswers.filter((ans, i) => ans === questions[i].answer).length;
 
@@ -124,6 +128,13 @@ const Questionnaire: React.FC = () => {
     const handler = new MemberSocketHandler(socketUrl, participantId, token);
     setSocketHandler(handler);
     
+    // Initialize WebRTC handler
+    const rtcHandler = new WebRTCHandler();
+    setWebRTCHandler(rtcHandler);
+    
+    // Initialize student's stream for WebRTC
+    rtcHandler.initializeLocalStream(true, false).catch(console.error);
+    
     // Set up event handlers
     handler.on('start-exam', (data: SocketMessage) => {
       console.log('Exam start approved by proctor');
@@ -135,12 +146,75 @@ const Questionnaire: React.FC = () => {
       setIsFinished(true);
     });
     
+    // Handle WebRTC offer from proctor
+    handler.on('webrtc-offer', async (data: SocketMessage) => {
+      console.log('Received WebRTC offer from proctor');
+      const proctorId = data.participant || 0;
+      const offer = JSON.parse(data.message);
+      
+      // Create peer connection
+      const peerConnection = rtcHandler.createPeerConnection(proctorId);
+      
+      // Set up handlers
+      rtcHandler.setupPeerConnectionHandlers(
+        proctorId,
+        (event) => {
+          // Handle incoming proctor stream
+          console.log('Received proctor stream:', event);
+          if (event.streams && event.streams[0]) {
+            setProctorStream(event.streams[0]);
+            if (proctorVideoRef.current) {
+              proctorVideoRef.current.srcObject = event.streams[0];
+            }
+          }
+        },
+        (candidate) => {
+          // Send ICE candidate to proctor
+          handler.sendMessage({
+            event: 'ice-candidate',
+            message: JSON.stringify(candidate),
+            participant: participantId,
+            sender_id: String(participantId)
+          });
+        },
+        (state) => {
+          console.log('Connection state:', state);
+        }
+      );
+      
+      // Set remote description and create answer
+      try {
+        await peerConnection.setRemoteDescription(offer);
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        
+        // Send answer back to proctor
+        handler.sendMessage({
+          event: 'webrtc-answer',
+          message: JSON.stringify(answer),
+          participant: participantId,
+          sender_id: String(participantId)
+        });
+      } catch (error) {
+        console.error('Error handling WebRTC offer:', error);
+      }
+    });
+    
+    // Handle ICE candidates from proctor
+    handler.on('ice-candidate', async (data: SocketMessage) => {
+      console.log('Received ICE candidate from proctor');
+      const proctorId = data.participant;
+      const candidate = JSON.parse(data.message);
+      await rtcHandler.handleIceCandidate(proctorId, candidate);
+    });
+    
     // Connect to WebSocket
     handler.connect();
     
     // Cleanup on unmount
     return () => {
       handler.disconnect();
+      rtcHandler.cleanup();
     };
   }, []);
   
@@ -162,16 +236,15 @@ const Questionnaire: React.FC = () => {
       <div className="fixed top-4 right-4 z-50">
         <div className="bg-white rounded-lg shadow-xl overflow-hidden">
           <video
+            ref={proctorVideoRef}
             className="w-80 h-60 bg-gray-900"
             autoPlay
-            muted
+            muted={false}
             playsInline
             controls={false}
-          >
-            <source src="" type="video/mp4" />
-          </video>
+          />
           <div className="p-2 bg-gray-800 text-white text-center text-sm">
-            Proctor Live Stream
+            {proctorStream ? 'Proctor Live Stream' : 'Connecting to Proctor...'}
           </div>
         </div>
       </div>
